@@ -598,6 +598,52 @@ function format(::T, buf, doc) where T <: Union{Readme,License}
     end
 end
 
+"""
+The singleton type for [`BODY`](@ref) abbreviations.
+"""
+struct Body end
+
+"""
+    BODY
+
+An abbreviation that expands into a pretty-printed representation of the entire
+expression that the docstring documents.
+"""
+const BODY = Body()
+
+struct CapturedExpr <:Abbreviation
+    expr::Expr
+end
+
+function format(captured::CapturedExpr, buf, doc)
+    # TODO: implement.
+    println(buf,
+        """
+        ```julia
+        $(captured.expr)
+        ```
+        """
+    )
+end
+
+# Only capture the expression if the symbol `BODY` actually resolves to the
+# `Body` type. Otherwise just use the resolved value in the string
+# interpolation.
+_maybe_captured(::Body, expr::Expr) = CapturedExpr(expr)
+_maybe_captured(other, expr) = other
+
+# During macro expansion process the interpolated string searching for `:BODY`
+# symbols and maybe convert them to `CapturedExpr` if they resolve to `Body`
+# after expansion.
+function _capture_expression_body(docstr::Expr, expr::Expr)
+    if Meta.isexpr(docstr, :string)
+        docstr.args = map(docstr.args) do arg
+            arg === :BODY ? Expr(:call, _maybe_captured, arg, QuoteNode(expr)) : arg
+        end
+    end
+    return docstr
+end
+_capture_expression_body(@nospecialize(other), expr::Expr) = other
 
 #
 # `DocStringTemplate`
