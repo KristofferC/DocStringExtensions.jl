@@ -4,6 +4,37 @@
 #
 
 #
+# Expression Capture.
+#
+
+"""
+    interpolation(object, captured)
+
+Interface method for hooking into interpolation within docstrings.
+`object` is an individual interpolated object within a docstring while
+`captured` is the expression that is documented by the docstring to which the
+interpolated `object` has been inserted.
+
+To define custom behaviour for your own `object` types implement a method of
+`handle_capture(::T, captured)` where you "own" `T` and return a new object to
+be interpolated into the final docstring.
+"""
+interpolation(@nospecialize(object), @nospecialize(captured)) = object
+
+# During macro expansion process the interpolated string and replace all interpolation
+# syntax with calls to `interpolation` that pass through the documented expression along
+# with the resolved object that was interpolated.
+function _capture_expression(docstr::Expr, expr::Expr)
+    if Meta.isexpr(docstr, :string)
+        fn(interp) = Expr(:call, interpolation, interp, QuoteNode(expr))
+        fn(str::AbstractString) = str
+        docstr.args = fn.(docstr.args)
+    end
+    return docstr
+end
+_capture_expression(@nospecialize(other), ::Expr) = other
+
+#
 # Method grouping.
 #
 
